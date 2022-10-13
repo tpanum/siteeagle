@@ -2,6 +2,7 @@ import httpx
 import argparse
 import hashlib
 import time
+from difflib import unified_diff
 
 from bs4 import BeautifulSoup
 
@@ -26,7 +27,7 @@ def get_content(site, selector):
     return content
 
 
-def main(site=None, selector=None, frequency=None, ntfy_channel=None):
+def main(diff, site=None, selector=None, frequency=None, ntfy_channel=None):
     content = None
     succesive_errors = 0
 
@@ -51,7 +52,10 @@ def main(site=None, selector=None, frequency=None, ntfy_channel=None):
 
         if content is not None:
             if content[1] != next_content[1]:
-                payload = f"Site ({site}) change from '{content[0]}' to '{next_content[0]}'"
+                if diff:
+                  payload = "".join(l for l in unified_diff(content[0], next_content[0], fromfile=f"{site}_before", tofile=f"{site}_after"))
+                else:
+                  payload = f"Site ({site}) change from '{content[0]}' to '{next_content[0]}'"
 
                 httpx.post(f"https://ntfy.sh/{ntfy_channel}", data=payload)
 
@@ -63,6 +67,8 @@ def main(site=None, selector=None, frequency=None, ntfy_channel=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--diff", action=argparse.BooleanOptionalAction,
+                        help="send only diff instead of whole site if set")
     parser.add_argument("-s", "--site", type=str,
                         help="location of site to monitor")
     parser.add_argument("-z", "--selector", type=str,
